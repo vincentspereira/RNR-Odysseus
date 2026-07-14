@@ -1,18 +1,25 @@
-# Copy to /etc/systemd/system/odysseus-ui.service
-# Edit User, WorkingDirectory, and ExecStart paths to match your setup
+# systemd unit template for running Odysseus as a background service.
+#
+# Do NOT edit the placeholders by hand unless you want to. Instead run:
+#     sudo ./install-service.sh
+# which detects your username and the repo directory and writes a ready-to-use
+# copy to /etc/systemd/system/odysseus-ui.service for you.
+#
+# To install manually instead, edit the bracketed values below (User,
+# WorkingDirectory, ExecStart, EnvironmentFile) to your real username and repo
+# path, then copy this file to /etc/systemd/system/odysseus-ui.service.
 [Unit]
-Description=Odysseus UI
+Description=Odysseus UI (self-hosted AI workspace)
 After=network.target
 
 [Service]
 Type=simple
-# CHANGE THESE to match your user and install path:
-User=YOURUSER
-WorkingDirectory=/home/YOURUSER/odysseus-ui
-ExecStart=/home/YOURUSER/odysseus-ui/venv/bin/uvicorn app:app --port 7000 --host 0.0.0.0
+User=__USER__
+WorkingDirectory=__REPO_DIR__
+ExecStart=__REPO_DIR__/venv/bin/uvicorn app:app --port 7000 --host 127.0.0.1
 Restart=always
 RestartSec=3
-EnvironmentFile=-/home/YOURUSER/odysseus-ui/.env
+EnvironmentFile=-__REPO_DIR__/.env
 
 [Install]
 WantedBy=multi-user.target
