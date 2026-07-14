@@ -196,16 +196,16 @@ class DeepResearcher:
         llm_headers: Optional[Dict] = None,
         max_rounds: int = 8,
         max_time: int = 300,
-        max_urls_per_round: int = 3,
-        max_content_chars: int = 15000,
+        max_urls_per_round: int = 5,
+        max_content_chars: int = 25000,
         max_report_tokens: int = 8192,
         extraction_timeout: int = 90,
         planning_timeout: int = 90,
         query_timeout: int = 120,
         extraction_concurrency: int = 3,
-        min_rounds: int = 2,
+        min_rounds: int = 3,
         max_empty_rounds: int = 2,
-        synthesis_window: int = 10,
+        synthesis_window: int = 15,
         progress_callback: Optional[Callable] = None,
         search_provider: Optional[str] = None,
         category: Optional[str] = None,
@@ -461,13 +461,13 @@ class DeepResearcher:
     async def _generate_queries(self, question: str, report: str,
                                 round_num: int) -> List[str]:
         if round_num == 1:
-            num_queries = 4
+            num_queries = 6
             round_instruction = (
                 "This is the first round — generate broad, diverse queries "
                 "that explore the key facets of the question."
             )
         else:
-            num_queries = 3
+            num_queries = 4
             round_instruction = (
                 "We already have partial findings.  Generate targeted follow-up "
                 "queries to fill gaps, verify claims, or explore specific aspects "
@@ -753,7 +753,7 @@ class DeepResearcher:
             )
 
             # If report is too short, ask the LLM to expand it
-            if len(result.split()) < 400:
+            if len(result.split()) < 800:
                 logger.info(f"Final report too short ({len(result.split())} words), requesting expansion")
                 self._emit(phase="writing", message="Expanding report...")
                 expanded = await self._llm(
