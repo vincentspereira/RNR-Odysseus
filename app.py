@@ -169,6 +169,15 @@ LOCALHOST_BYPASS = os.getenv("LOCALHOST_BYPASS", "false").lower() == "true"
 if LOCALHOST_BYPASS:
     logger.warning("LOCALHOST_BYPASS is enabled, loopback requests bypass authentication. Do not expose this instance to a network.")
 
+if not AUTH_ENABLED:
+    logger.warning(
+        "AUTH_ENABLED is false -- ALL authentication is disabled and every route "
+        "(including admin-only shell, file, vault, and MCP tools) is open. This is "
+        "ONLY safe on a trusted single-user loopback setup. Never bind a host "
+        "(APP_BIND=0.0.0.0 / --host 0.0.0.0) or expose this port to a network with "
+        "auth disabled."
+    )
+
 if AUTH_ENABLED:
     AUTH_EXEMPT_EXACT = {
         "/api/auth/setup",
@@ -212,6 +221,12 @@ if AUTH_ENABLED:
     _token_cache: dict = {}
     _token_cache_lock = _asyncio.Lock()
     _token_cache_dirty = True
+    # Strong references for fire-and-forget last_used_at update tasks. asyncio
+    # may garbage-collect a task with no live reference before it finishes
+    # (CPython docs). Keeping them in a set and discarding on completion avoids
+    # both the GC drop and unbounded growth. See app.py line ~892 for the same
+    # discipline applied to startup tasks.
+    _token_bg_tasks: set = set()
 
     def _token_cache_invalidate():
         nonlocal_dict = app.state.__dict__
@@ -351,7 +366,9 @@ if AUTH_ENABLED:
                                 await _asyncio.to_thread(_do)
                             except Exception:
                                 pass
-                        _asyncio.create_task(_touch_last_used(matched_id))
+                        _bg = _asyncio.create_task(_touch_last_used(matched_id))
+                        _token_bg_tasks.add(_bg)
+                        _bg.add_done_callback(_token_bg_tasks.discard)
                         # Keep bearer-token callers out of normal cookie/user
                         # routes. API-aware routes can read api_token_owner.
                         request.state.current_user = "api"
@@ -429,7 +446,12 @@ async def serve_generated_image(filename: str, request: Request):
     except HTTPException:
         raise
     except Exception:
-        pass
+        # Fail CLOSED: if the ownership check itself errors (DB down, schema
+        # mismatch), do not serve the image unverified. The 12-hex filename is
+        # the only key, so serving on a failed check could leak another user's
+        # image bytes. Deny instead of guessing.
+        logger.warning("generated-image ownership check failed; denying", exc_info=True)
+        raise HTTPException(status_code=404, detail="Image not found")
     ext = filename.rsplit('.', 1)[-1].lower()
     mime = {
         "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
