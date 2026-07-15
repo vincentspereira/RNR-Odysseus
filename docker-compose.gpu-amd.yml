@@ -90,7 +90,8 @@ services:
       - ${RENDER_GID:-render}
 
   chromadb:
-    image: docker.io/chromadb/chroma:latest
+    # Pinned (matches chromadb-client in requirements.txt). See docker-compose.yml.
+    image: docker.io/chromadb/chroma:1.5.9
     ports:
       - "${CHROMADB_BIND:-127.0.0.1}:8100:8000"
     volumes:
@@ -150,7 +151,8 @@ services:
     restart: unless-stopped
 
   ntfy:
-    image: docker.io/binwiederhier/ntfy
+    # Pinned. See docker-compose.yml.
+    image: docker.io/binwiederhier/ntfy:v2.26
     command: serve
     ports:
       - "${NTFY_BIND:-127.0.0.1}:8091:80"

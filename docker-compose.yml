@@ -71,7 +71,12 @@ services:
     restart: unless-stopped
 
   chromadb:
-    image: docker.io/chromadb/chroma:latest
+    # Pinned, not :latest — ChromaDB is core to vector memory/RAG, and a
+    # breaking upstream `latest` (schema or API change) would silently degrade
+    # the app to keyword fallback. 1.5.9 matches the chromadb-client version in
+    # requirements.txt (server + client on the same release line). Bump this
+    # deliberately after verifying the newer tag boots clean against the app.
+    image: docker.io/chromadb/chroma:1.5.9
     ports:
       - "${CHROMADB_BIND:-127.0.0.1}:8100:8000"
     volumes:
@@ -131,7 +136,11 @@ services:
     restart: unless-stopped
 
   ntfy:
-    image: docker.io/binwiederhier/ntfy
+    # Pinned, not untagged (:latest). ntfy's HTTP API is stable across releases,
+    # but pinning avoids surprise breakage/behavior changes on a stack restart.
+    # Bump deliberately after verifying a newer tag works with the app's note/
+    # task notification flow.
+    image: docker.io/binwiederhier/ntfy:v2.26
     command: serve
     ports:
       - "${NTFY_BIND:-127.0.0.1}:8091:80"
