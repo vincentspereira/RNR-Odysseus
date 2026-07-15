@@ -5,6 +5,7 @@ MCP server exposing RAG document management (list, add_directory, remove_directo
 """
 
 import asyncio
+import logging
 import os
 import sys
 from pathlib import Path
@@ -14,6 +15,11 @@ from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# MCP transports the protocol over stdout, so log to stderr only (Python's
+# logging defaults to stderr; never add a stdout handler here). Makes init and
+# best-effort failures diagnosable instead of silent.
+logger = logging.getLogger("odysseus.mcp.rag")
 
 server = Server("rag")
 
@@ -33,14 +39,14 @@ def _ensure_init():
         from src.rag_singleton import get_rag_manager
         _rag_manager = get_rag_manager()
     except Exception:
-        pass
+        logger.warning("RAG manager unavailable; document RAG disabled", exc_info=True)
 
     try:
         from src.constants import PERSONAL_DIR
         from src.personal_docs import PersonalDocsManager
         _personal_docs_manager = PersonalDocsManager(PERSONAL_DIR, _rag_manager)
     except Exception:
-        pass
+        logger.warning("personal docs manager unavailable; directory tracking disabled", exc_info=True)
 
 
 @server.list_tools()
@@ -123,7 +129,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 try:
                     _personal_docs_manager.add_directory(directory, index=False)
                 except Exception:
-                    pass
+                    logger.warning("failed to track indexed directory %r (still indexed in RAG)", directory, exc_info=True)
             return [TextContent(type="text", text=f"Directory '{directory}' added to RAG index ({indexed} chunks indexed)")]
         except Exception as e:
             return [TextContent(type="text", text=f"Error: Failed to index directory: {e}")]

@@ -6,6 +6,7 @@ Imports MemoryManager and MemoryVectorStore from the Odysseus codebase.
 """
 
 import asyncio
+import logging
 import sys
 import time
 from pathlib import Path
@@ -15,6 +16,11 @@ from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# MCP transports the protocol over stdout, so log to stderr only (Python's
+# logging defaults to stderr; never add a stdout handler here). This makes
+# best-effort failures (e.g. the vector index) diagnosable instead of silent.
+logger = logging.getLogger("odysseus.mcp.memory")
 
 server = Server("memory")
 
@@ -41,6 +47,7 @@ def _ensure_init():
         if not _memory_vector.healthy:
             _memory_vector = None
     except Exception:
+        logger.warning("memory vector store unavailable; semantic search disabled", exc_info=True)
         _memory_vector = None
 
 
@@ -118,7 +125,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             try:
                 _memory_vector.add(entry["id"], text)
             except Exception:
-                pass
+                logger.warning("memory vector index update failed (memory still saved to disk)", exc_info=True)
         return [TextContent(type="text", text=f"Memory added: [{category}] {text} (id: {entry['id'][:8]})")]
 
     elif action == "edit":
@@ -144,7 +151,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 _memory_vector.remove(full_id)
                 _memory_vector.add(full_id, new_text)
             except Exception:
-                pass
+                logger.warning("memory vector index update failed (memory still saved to disk)", exc_info=True)
         return [TextContent(type="text", text=f"Memory updated: {new_text}")]
 
     elif action == "delete":
@@ -169,7 +176,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             try:
                 _memory_vector.remove(full_id)
             except Exception:
-                pass
+                logger.warning("memory vector index update failed (memory still saved to disk)", exc_info=True)
         cat = f"[{deleted_category}] " if deleted_category else ""
         snippet = deleted_text if len(deleted_text) <= 120 else deleted_text[:117] + "..."
         return [TextContent(type="text", text=f"Memory deleted: {cat}{snippet} (id: {memory_id})")]

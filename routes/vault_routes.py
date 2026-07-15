@@ -77,18 +77,15 @@ def _save_config(cfg: dict):
     safe_chmod(str(VAULT_FILE), 0o600)
 
 
-async def _run_bw(args: list, session: str = None, input_text: str = None,
-                  bw_password: str = None) -> tuple:
+async def _run_bw(args: list, session: str = None, input_text: str = None) -> tuple:
     env = {}
     env.update(os.environ)
     if session:
         env["BW_SESSION"] = session
-    # Secrets must never be passed as argv — process arguments are world-readable
-    # via `ps` / `/proc/<pid>/cmdline` to any local user. Keep --passwordenv
-    # support for bw commands that need it; unlock/login callers should prefer
-    # stdin so the master password is not left in the child environment either.
-    if bw_password is not None:
-        env["BW_PASSWORD"] = bw_password
+    # Secrets must never be passed as argv -- process arguments are world-readable
+    # via `ps` / `/proc/<pid>/cmdline` to any local user. The master password is
+    # always passed on stdin (never argv, never a child env var), so it is not
+    # left in the child environment readable via /proc/<pid>/environ.
     bw_path = _find_bw()
     try:
         proc = await asyncio.create_subprocess_exec(

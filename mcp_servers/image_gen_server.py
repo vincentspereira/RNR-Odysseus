@@ -6,6 +6,7 @@ MCP server exposing image generation via OpenAI-compatible APIs.
 
 import asyncio
 import base64
+import logging
 import sys
 import uuid
 from pathlib import Path
@@ -17,6 +18,10 @@ from mcp.types import Tool, TextContent
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.constants import GENERATED_IMAGES_DIR
+
+# MCP transports the protocol over stdout, so log to stderr only (Python's
+# logging defaults to stderr; never add a stdout handler here).
+logger = logging.getLogger("odysseus.mcp.image_gen")
 
 server = Server("image_gen")
 
@@ -145,7 +150,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                     db.commit()
                     db.close()
                 except Exception:
-                    pass
+                    logger.warning("failed to record generated image in gallery DB (image still saved to disk)", exc_info=True)
 
             elif img.get("url"):
                 image_url = img["url"]

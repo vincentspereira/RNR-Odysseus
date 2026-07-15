@@ -68,21 +68,17 @@ def _patch_exec(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_run_bw_passwordenv_does_not_put_password_in_argv(monkeypatch):
+async def test_run_bw_never_accepts_password_via_env(monkeypatch):
+    """_run_bw must not support a password-via-env path at all -- the child
+    environment is readable via /proc/<pid>/environ on Linux. The master
+    password is passed on stdin only. Calling with a legacy `bw_password`
+    kwarg must now raise (the path was removed), and env must never contain it.
+    """
     captured = _patch_exec(monkeypatch)
-    secret = "correct horse battery staple"
-    await vr._run_bw(["unlock", "--passwordenv", "BW_PASSWORD", "--raw"],
-                     bw_password=secret)
-    # The secret must reach bw through the environment...
-    assert captured["env"].get("BW_PASSWORD") == secret
-    # ...and must NOT appear anywhere in the argv (which `ps` exposes).
-    assert secret not in captured["argv"]
-    assert all(secret not in str(a) for a in captured["argv"])
-
-
-@pytest.mark.asyncio
-async def test_run_bw_without_password_does_not_set_env(monkeypatch):
-    captured = _patch_exec(monkeypatch)
+    import inspect
+    params = inspect.signature(vr._run_bw).parameters
+    assert "bw_password" not in params, "_run_bw must not accept bw_password= (removed: /proc environ leak vector)"
+    # No way to pass a password env via _run_bw anymore; prove the env stays clean.
     await vr._run_bw(["lock"])
     assert "BW_PASSWORD" not in captured["env"]
 
