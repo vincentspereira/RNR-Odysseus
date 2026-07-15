@@ -52,12 +52,26 @@ window.uiModule = uiModule;
 window.adminModule = adminModule;
 window.cookbookModule = cookbookModule;
 
-// Redirect to login on 401 from any fetch
+// Redirect to login on a session-expired 401, but without yanking the user out
+// of their workflow on every background poll (cookbook/email/research/task
+// status pings). Guards:
+//  - skip auth endpoints themselves (login/status live there);
+//  - skip when the tab is hidden — a background poll shouldn't redirect an
+//    away user (the next foreground request will, if the session is really gone);
+//  - dedupe so a burst of 401s from concurrent polls only redirects once;
+//  - skip when already on /login to avoid a redirect loop.
 const _origFetch = window.fetch;
+let _redirectingToLogin = false;
 window.fetch = async function(...args) {
   const res = await _origFetch.apply(this, args);
   if (res.status === 401 && !String(args[0]).includes('/api/auth/')) {
-    window.location.href = '/login';
+    const path = window.location.pathname || '';
+    const onLogin = path === '/login' || path.endsWith('/login');
+    const tabVisible = !document.visibilityState || document.visibilityState === 'visible';
+    if (!onLogin && !_redirectingToLogin && tabVisible) {
+      _redirectingToLogin = true;
+      window.location.href = '/login';
+    }
   }
   return res;
 };

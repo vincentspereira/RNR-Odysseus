@@ -11751,6 +11751,31 @@ textarea.memory-add-input {
   white-space: nowrap !important; border: 0 !important;
 }
 
+/* Accessibility: skip-to-content link. Lives off-screen (translated up, not
+   display:none, so it stays screen-reader reachable) and slides in on keyboard
+   focus so keyboard users can bypass the long sidebar straight to chat. */
+.skip-link {
+  position: absolute !important;
+  left: 8px; top: 8px;
+  z-index: 100000;
+  transform: translateY(-150%);
+  transition: transform .15s ease;
+  padding: 8px 12px;
+  background: var(--brand-color, #e06c75);
+  color: #fff;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  pointer-events: none;
+}
+.skip-link:focus {
+  transform: translateY(0);
+  pointer-events: auto;
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
 /* ── Custom language type picker (replaces visible chrome of native <select>
    — <option>s can't render SVG). Hidden select stays as the source of truth. */
 .doc-langpicker-native-hidden {
