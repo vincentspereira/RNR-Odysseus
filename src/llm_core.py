@@ -227,7 +227,13 @@ _http_client: Optional[httpx.AsyncClient] = None
 _http_limits = httpx.Limits(max_connections=100, max_keepalive_connections=30, keepalive_expiry=30.0)
 
 def _get_http_client() -> httpx.AsyncClient:
-    """Return process-wide AsyncClient. Per-request timeout is passed at call time."""
+    """Return process-wide AsyncClient. Per-request timeout is passed at call time.
+
+    This is intentionally synchronous: it contains no ``await``, so the event
+    loop cannot interleave another coroutine between the None-check and the
+    assignment. Two concurrent callers therefore cannot both create a client
+    (there is no TOCTOU window), so no lock is needed.
+    """
     global _http_client
     if _http_client is None or _http_client.is_closed:
         from src.tls_overrides import llm_verify
@@ -235,6 +241,17 @@ def _get_http_client() -> httpx.AsyncClient:
             limits=_http_limits, http2=False, verify=llm_verify(),
         )
     return _http_client
+
+async def close_http_client() -> None:
+    """Close the shared LLM HTTP client (warm connection pool).
+
+    Call from application shutdown so connections are released cleanly and a
+    graceful restart does not leave dangling sockets. Safe to call when no
+    client was ever created.
+    """
+    global _http_client
+    if _http_client is not None and not _http_client.is_closed:
+        await _http_client.aclose()
 
 def _get_cached_response(cache_key: str) -> Optional[str]:
     """Get cached response if it exists."""

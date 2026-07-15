@@ -1146,4 +1146,11 @@ async def _shutdown_event():
         await mcp_manager.disconnect_all()
     except Exception as e:
         logger.warning(f"MCP shutdown error: {e}")
+    # Close the shared LLM HTTP client (warm connection pool) so a graceful
+    # restart releases sockets instead of leaving dangling connections.
+    try:
+        from src.llm_core import close_http_client
+        await close_http_client()
+    except Exception as e:
+        logger.warning(f"LLM HTTP client shutdown error: {e}")
     logger.info("Application shutdown complete")
